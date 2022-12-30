@@ -46,27 +46,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
       isLoading = true;
     });
     try {
-      QuerySnapshot postSnap = await FirebaseFirestore.instance
+      FirebaseFirestore.instance
           .collection('posts')
           .where(
             'uid',
             isEqualTo: widget.uid,
           )
-          .get();
+          .snapshots()
+          .listen((event) {
+        setState(() {
+          postLen = event.docs
+              .where((element) => element['uid'] == widget.uid)
+              .length;
+        });
+      });
 
-      DocumentSnapshot snapshot = await FirebaseFirestore.instance
+      FirebaseFirestore.instance
           .collection('users')
           .doc(widget.uid)
-          .get();
-
-      setState(() {
-        postLen = postSnap.docs.length;
-        user = model.User.fromSnap(snapshot);
-        followers = user.followers.length;
-        following = user.following.length;
-        isFollowing = user.followers.contains(widget.uid);
-      });
-      setState(() {});
+          .snapshots()
+          .listen(
+        (event) {
+          var data = event.data()!;
+          setState(() {
+            user = model.User(
+              bio: data['bio'],
+              username: data['username'],
+              email: data['email'],
+              photoUrl: data['photoUrl'],
+              uid: data['uid'],
+              followers: data['followers'],
+              following: data['following'],
+            );
+            followers = user.followers.length;
+            following = user.following.length;
+            isFollowing = user.followers.contains(widget.uid);
+          });
+        },
+      );
     } catch (err) {
       showSnackBar(context, err.toString());
     }
@@ -141,7 +158,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         );
                                         setState(() {
                                           isFollowing = false;
-                                          followers--;
                                         });
                                       },
                                     )
@@ -158,7 +174,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         );
                                         setState(() {
                                           isFollowing = true;
-                                          followers++;
                                         });
                                       },
                                     ),
@@ -189,14 +204,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 const Divider(),
-                FutureBuilder(
-                    future: FirebaseFirestore.instance
+                StreamBuilder(
+                    stream: FirebaseFirestore.instance
                         .collection('posts')
                         .where(
                           'uid',
                           isEqualTo: widget.uid,
                         )
-                        .get(),
+                        .snapshots(),
                     builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(
